@@ -1,0 +1,90 @@
+pipeline {
+    agent any
+    environment {
+        PROJECT_DIR = '5SAE5_G8_P2'
+    }
+    stages {
+        stage("GIT") {
+            steps {
+                script {
+                    if (!fileExists(env.PROJECT_DIR)) {
+                        sh "git clone -b ChihebAroua_5SAE5_G8   ${env.PROJECT_DIR}"
+                    } else {
+                        echo "Le répertoire '${env.PROJECT_DIR}' existe déjà. Mise à jour en cours..."
+                        dir(env.PROJECT_DIR) {
+                            sh "git checkout ChihebAroua_5SAE5_G8"
+                            sh "git pull origin ChihebAroua_5SAE5_G8"
+                        }
+                    }
+                }
+            }
+        }
+
+        stage('Maven Build') {
+            steps {
+                dir(env.PROJECT_DIR) {
+                    sh 'mvn clean install'
+                    echo 'Maven build is done'
+                }
+            }
+        }
+           stage('JUnit/Mockito Tests') {
+            steps {
+                dir(env.PROJECT_DIR) {
+                    sh 'mvn test -Dtest=tn.esprit.spring.kaddem.EtudiantServiceImplTest'
+                }
+            }
+        }
+           stage('Nexus Deployment') {
+            steps {
+                dir(env.PROJECT_DIR) {
+                    sh 'mvn deploy -DaltDeploymentRepository=deploymentRepo::default::http://192.168.33.10:8081/repository/maven-releases/'
+                }
+            }
+        }
+        
+        
+        
+        stage('Build Docker Image') {
+            steps {
+                echo 'Building the Docker image...'
+        sh 'docker build -t zalkos/kaddem:1.0 -f /var/lib/jenkins/workspace/pipeline/5SAE5_G8_P2/Dockerfile .'
+            }
+        }
+/*
+        stage('Upload to Docker Hub') {
+            steps {
+                sh 'docker login -u zalkos -p 23924440A'
+                sh 'docker push zalkos/kaddem:1.0'
+            }
+        }*/
+       
+        stage('Run Docker Compose') {
+            steps {
+                echo 'Running Docker Compose...'
+                sh 'docker compose -f /var/lib/jenkins/workspace/pipeline/5SAE5_G8_P2/docker-compose.yml up -d'
+            }
+        }
+        
+        
+        
+        
+        stage('SonarQube Analysis') {
+            steps {
+                dir(env.PROJECT_DIR) {
+                    sh 'mvn clean package sonar:sonar -Dsonar.login=admin -Dsonar.password=chihebaroua -Dmaven.test.skip=true'
+                }
+            }
+        }
+       
+        
+     
+        // Commented stages
+       
+         /*
+        
+     
+
+        */
+    }
+}
